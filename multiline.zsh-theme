@@ -31,33 +31,38 @@
 
 CURRENT_BG='NONE'
 
-if [ "$(echo $COLORFGBG | cut -d ';' -f2)" -gt 8 ]; then
-  PRIMARY_FG=white
-else
-	PRIMARY_FG=black
-fi
-
 # Characters
 SEGMENT_SEPARATOR="\ue0b0"
 
 # Begin a segment
-# Takes two arguments, background and foreground. Both can be omitted,
-# rendering default background/foreground.
+# Takes two arguments: background and foreground. Foreground can be set to
+# "contrast" which uses the default background as foreground.
+# Optional text as third argument.
 prompt_segment() {
-  local bg fg
-  [[ -n $1 ]] && bg="%K{$1}" || bg="%k"
-  [[ -n $2 ]] && fg="%F{$2}" || fg="%f"
+  # Render a separator if the color changes
   if [[ $CURRENT_BG != 'NONE' && $1 != $CURRENT_BG ]]; then
-    print -n "%{$bg%F{$CURRENT_BG}%}$SEGMENT_SEPARATOR%{$fg%}"
-  else
-    print -n "%{$bg%}%{$fg%}"
+    # invert to use default background as separator foreground
+    if [[ $CURRENT_BG == "default" ]]; then
+      print -n "%{%S%F{$1}%k%}$SEGMENT_SEPARATOR"
+    else
+      print -n "%{%s%K{$1}%F{$CURRENT_BG}%}$SEGMENT_SEPARATOR"
+    fi
   fi
+
+  # invert to use background "contrast" as foreground color
+  if [[ "$2" == "contrast" ]]; then
+    print -n "%{%S%F{$1}%k%}"
+  else
+    print -n "%{%s%K{$1}%F{$2}%}"
+  fi
+
   CURRENT_BG=$1
   [[ -n $3 ]] && print -n $3
 }
 
 # End the prompt, closing any open segments
 prompt_end() {
+  print -n "%{%s%}"
   if [[ -n $CURRENT_BG ]]; then
     print -n "%{%k%F{$CURRENT_BG}%}$SEGMENT_SEPARATOR"
   else
@@ -76,7 +81,7 @@ prompt_context() {
   local user=`whoami`
 
   if [[ "$user" != "$DEFAULT_USER" || -n "$SSH_CONNECTION" ]]; then
-    prompt_segment $PRIMARY_FG default " %(!.%{%F{yellow}%}.)$user@%m "
+    prompt_segment default default " %(!.%{%F{yellow}%}.)$user@%m "
   fi
 }
 
@@ -100,14 +105,14 @@ prompt_git() {
     else
       ref="\u27a6 ${ref/.../}"
     fi
-    prompt_segment $color $PRIMARY_FG
+    prompt_segment $color contrast
     print -n " $ref"
   fi
 }
 
 # Dir: current working directory
 prompt_dir() {
-  prompt_segment blue $PRIMARY_FG ' %~ '
+  prompt_segment blue contrast ' %~ '
 }
 
 # Status:
@@ -121,13 +126,13 @@ prompt_status() {
   [[ $UID -eq 0 ]] && symbols+="%{%F{yellow}%}\u26a1"
   [[ $(jobs -l | wc -l) -gt 0 ]] && symbols+="%{%F{cyan}%}\u2699"
 
-  [[ -n "$symbols" ]] && prompt_segment $PRIMARY_FG default " $symbols "
+  [[ -n "$symbols" ]] && prompt_segment default default " $symbols "
 }
 
 # Display current virtual environment
 prompt_virtualenv() {
   if [[ -n $VIRTUAL_ENV ]]; then
-    prompt_segment yellow $PRIMARY_FG
+    prompt_segment yellow contrast
     print -Pn " $(basename $VIRTUAL_ENV) "
   fi
 }
